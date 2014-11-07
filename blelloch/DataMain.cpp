@@ -73,12 +73,7 @@ int main(int argc, char* argv[]){
     vector<Point> list = genData(num, seed, range, castToInt);    
     
     if(writeFile){
-        ofstream outFile(file);
-        outFile << num << endl;
-        for(int i = 0; i < num; i++){
-            outFile << list[i].getX() << " " << list[i].getY() << endl;
-        }
-        outFile.close();
+        writeData(file, list); 
     } else {
         for(int i = 0; i < num; i++){
             cout << list[i].getX() << " " << list[i].getY() << endl;

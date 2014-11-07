@@ -44,3 +44,12 @@ vector<Point> readData(char* filename){
     }
     return output;
 }
+
+void writeData(char* filename, vector<Point> points){
+    ofstream outFile(filename);
+    outFile << points.size() << endl;
+    for(int i = 0; i < points.size(); i++){
+        outFile << points[i].getX() << " " << points[i].getY() << endl;
+    }
+    outFile.close();
+}
