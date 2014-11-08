@@ -13,4 +13,7 @@ class Point{
         void setY(double val);
         double distance(Point p);
         double distance(double x1, double y1);
+        void copy(Point p);
+        friend Point operator*(const Point &base, const double mult);
+        friend Point operator+(const Point &left, const Point &right);
 };

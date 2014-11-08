@@ -180,6 +180,26 @@ void findMinNode(nodeData* dataMat, int start, int end, nodeData* result){
     }
 }
 
+void scan(int* data, int num, int* result){
+    //TODO: check for off by one errors at the end of each loop
+
+    int* halfData = new int[num / 2];
+    int* halfScan = new int[num / 2 + 1];
+    cilk_for(int i = 0; i < num / 2; i++){
+        halfData[i] = data[i * 2] + data[i * 2 + 1];
+    }
+    scan(halfData, num / 2, halfScan);
+    cilk_for(int i = 0; i < num / 2 - 1; i++){
+        result[2 * i] = halfScan[i];
+        result[2 * i + 1] = halfScan[i] + data[2 * i + 1];
+    }
+    
+    //this is definitely wrong:
+    //result[num] = halfData[num / 2];
+    
+    delete halfData;
+}
+
 int selectAndRemoveNodes(int* adjMat, int numPoints){
     int numRemoved = 0;
 
@@ -249,7 +269,8 @@ int selectAndRemoveNodes(int* adjMat, int numPoints){
     
     
     //TODO: scan over nodes to keep
-    
+    int *scanResults = new int[matSize + 1];
+    scan(nodesToKeep, matSize, scanResults);
     
     //TODO: readjust adjMat to reflect removed nodes
     
