@@ -16,4 +16,5 @@ class Point{
         void copy(Point p);
         friend Point operator*(const Point &base, const double mult);
         friend Point operator+(const Point &left, const Point &right);
+        friend bool operator==(const Point &left, const Point &right);
 };

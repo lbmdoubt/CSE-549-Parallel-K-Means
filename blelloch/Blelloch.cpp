@@ -181,23 +181,30 @@ void findMinNode(nodeData* dataMat, int start, int end, nodeData* result){
 }
 
 void scan(int* data, int num, int* result){
-    //TODO: check for off by one errors at the end of each loop
+    //base case
+    if(num == 1){
+        result[0] = 0;
+        result[1] = data[0];
+    }
 
-    int* halfData = new int[num / 2];
-    int* halfScan = new int[num / 2 + 1];
-    cilk_for(int i = 0; i < num / 2; i++){
+    //TODO: check for off by one errors at the end of each loop
+    //Note: this doesn't seem to work if num is odd
+    int halfSize = num / 2;
+    int* halfData = new int[halfSize];
+    int* halfScan = new int[halfSize + 1];
+    cilk_for(int i = 0; i < halfSize; i++){
         halfData[i] = data[i * 2] + data[i * 2 + 1];
     }
-    scan(halfData, num / 2, halfScan);
-    cilk_for(int i = 0; i < num / 2 - 1; i++){
-        result[2 * i] = halfScan[i];
-        result[2 * i + 1] = halfScan[i] + data[2 * i + 1];
+    scan(halfData, halfSize, halfScan);
+    cilk_for(int i = 0; i < num; i++){
+        if(i % 2 == 0){
+            result[i] = halfScan[i / 2];
+        } else {
+            result[i + 1] = halfScan[i / 2] + data[i - 1]; // goes out of halfScan bounds if i == num - 1 and num is odd
+        }
     }
     
-    //this is definitely wrong:
-    //result[num] = halfData[num / 2];
-    
-    delete halfData;
+    delete halfData, halfScan;
 }
 
 int selectAndRemoveNodes(int* adjMat, int numPoints){
@@ -276,6 +283,7 @@ int selectAndRemoveNodes(int* adjMat, int numPoints){
     
     delete nodeValues;
     delete nodesToKeep;
+    delete scanResults;
     return numRemoved;
 }
 
@@ -378,6 +386,20 @@ void printHelp(){
 }
 
 int main(int argc, char* argv[]){
+    int *scanTestData = new int[5];
+    int *scanResult = new int[6];
+    scanTestData[0] = 5;
+    scanTestData[1] = 2;
+    scanTestData[2] = 2;
+    scanTestData[3] = 4;
+    scanTestData[4] = 3;
+    scan(scanTestData, 5, scanResult);
+    for(int i = 0; i < 6; i++){
+        cout << scanResult[i] << " ";
+    }
+    cout << endl;
+
+
     int seed = time(NULL);
     int num = DEFAULT_NUM_POINTS;
     int range = DEFAULT_POINT_RANGE;

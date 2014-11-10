@@ -51,3 +51,7 @@ Point operator*(const Point &base, const double mult){
 Point operator+(const Point &left, const Point &right){
     return Point(left.x + right.x, left.y + right.y);
 }
+
+bool operator==(const Point &left, const Point &right){
+    return left.x == right.x && left.y == right.y;
+}
