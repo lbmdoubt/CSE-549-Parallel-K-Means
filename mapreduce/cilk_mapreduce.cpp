@@ -3,7 +3,7 @@
 #include <DataGen.cpp>
 #include <cilk/cilk.h>
 #include <cilktools/cilkview.h>
-#include <algorithm>
+#include <set>
 
 #define DEFAULT_NUM_OF_CLUSTERS 2;
 
@@ -16,6 +16,33 @@ struct interNode{
     double x, y; //sample information
 };
 
+void printPointsVector(vector<Point> points){
+    int num = points.size();
+    for (int i = 0; i < num; i++){
+        cout << "points[" << i << "]: " << points[i].getX() << " " << points[i].getY() << endl;
+    }
+    cout << endl;
+}
+
+int minReduceForIndex(double* array, int start, int end){
+    if ((end - start) == 1){
+        return start;
+    }
+
+    //first one on right
+    int mid = (end + start) / 2;
+
+    int leftIndex = minReduceForIndex(array, start, mid);
+    int rightIndex = minReduceForIndex(array, mid, end);
+
+    if (array[leftIndex] < array[rightIndex]){
+        return leftIndex;
+    }else{
+        return rightIndex;
+    }
+}
+
+
 
 interNode map(Point point, vector<Point> centers){
     int num = centers.size();
@@ -23,33 +50,40 @@ interNode map(Point point, vector<Point> centers){
     result.x = point.getX();
     result.y = point.getY();
 
-    int* dist_array = new int[num];
+    double* dist_array = new double[num];
+    //parallel to decrease span
     cilk_for(int i = 0; i < num; i++){
-        dist_array[i] = point.distance(centers.at(i));
+        dist_array[i] = point.distance(centers[i]);
     }
 
-    result.index = 0;
-    
-
+    result.index = minReduceForIndex(dist_array, 0, num);
     return result;
 
 }
 
-vector<Point> randomSelectKCenters(vector<Point> points, int numOfClusters){
+vector<Point> randomSelectKCenters(vector<Point> &points, int numOfClusters){
     vector<Point> centers(numOfClusters);
+    set<int> mySet;
     int size = points.size();
     srand(time(NULL));
 
     for (int i = 0; i < numOfClusters; i++){
         int index = rand() % size;
-        //TODO
-        //avoid duplicate, can't use find function
-
+        //avoid duplicate
+        while (mySet.find(index) != mySet.end()){
+            index = rand() % size;
+        }
+        
+        mySet.insert(index);
         centers[i] = points[index];
-
-        cout << "centers[" << i << "]: index = " << index << endl;
     }
 
+    //remove centers from points
+    set<int>::reverse_iterator rit;
+    for (rit = mySet.rbegin(); rit != mySet.rend(); rit++){
+        points.erase(points.begin() + *rit);
+    }
+    
     return centers;
 }
 
@@ -90,13 +124,21 @@ int main(int argc, char* argv[]){
     }
 
     vector<Point> points = readData(filename);
+    //cout << "before: " << points.size() << endl;
+    //printPointsVector(points);
     vector<Point> centers = randomSelectKCenters(points, numOfClusters);
+    //cout << "centers\n";
+    //printPointsVector(centers);
+    //cout << "after: " << points.size() << endl;
+    //printPointsVector(points);
 
-    for (int i = 0; i < numOfClusters; i++){
-        Point focus = centers[i];
-        cout << "centers[" << i << "]: " << focus.getX() << ", " << focus.getY() << endl;
+
+    vector<interNode> interNodes(points.size());
+    cilk_for(int i = 0; i < points.size() ; i++){
+        interNodes[i] = map(points[i], centers);
     }
 
 
     return 0;
 }
+
