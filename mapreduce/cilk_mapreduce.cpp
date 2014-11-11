@@ -3,7 +3,9 @@
 #include <DataGen.cpp>
 #include <cilk/cilk.h>
 #include <cilktools/cilkview.h>
+#include <limits>
 #include <set>
+#include <cmath>
 
 #define DEFAULT_NUM_OF_CLUSTERS 2;
 
@@ -16,6 +18,18 @@ struct interNode{
     double x, y; //sample information
 };
 
+void printInterNodeVector(vector<interNode> nodes){
+    int num = nodes.size();
+    if (num == 0){
+        cout << "empty vector\n";
+        return;
+    }
+
+    for (int i = 0; i < num; i++){
+        cout << "nodes[" << i << "]: index=" << nodes[i].index << " x=" << nodes[i].x << " y=" << nodes[i].y << endl; 
+    }
+    cout << endl;
+}
 void printPointsVector(vector<Point> points){
     int num = points.size();
     for (int i = 0; i < num; i++){
@@ -24,31 +38,58 @@ void printPointsVector(vector<Point> points){
     cout << endl;
 }
 
-int minReduceForIndex(double* array, int start, int end){
+void minReduceForIndex(double* array, int start, int end, int &index){
+    //index stores the index of the minimum element among the array
     if ((end - start) == 1){
-        return start;
+        index = start;
+        return;
     }
 
     //first one on right
     int mid = (end + start) / 2;
-
-    int leftIndex = minReduceForIndex(array, start, mid);
-    int rightIndex = minReduceForIndex(array, mid, end);
+    int leftIndex, rightIndex;
+    cilk_spawn minReduceForIndex(array, start, mid, leftIndex);
+    minReduceForIndex(array, mid, end, rightIndex);
+    cilk_sync;
 
     if (array[leftIndex] < array[rightIndex]){
-        return leftIndex;
+        index = leftIndex;
     }else{
-        return rightIndex;
+        index = rightIndex;
     }
+}
+
+void sumReduceForXY(vector<interNode> list, double &resX, double &resY){
+    //base case
+    if (list.size() == 1){
+        resX = list[0].x;
+        resY = list[0].y;
+        return;
+    }
+
+    //first one on right
+    int mid = list.size() / 2;
+    double resLX, resLY, resRX, resRY;
+    vector<interNode> listL (list.begin(), list.begin() + mid);
+    vector<interNode> listR (list.begin() + mid, list.end());
+
+    cilk_spawn sumReduceForXY(listL, resLX, resLY);
+    sumReduceForXY(listR, resRX, resRY);
+    cilk_sync;
+
+    resX = resLX + resRX;
+    resY = resLY + resRY;
 }
 
 
 
-interNode map(Point point, vector<Point> centers){
+
+interNode mapParallel(Point point, vector<Point> centers){
     int num = centers.size();
     interNode result; 
     result.x = point.getX();
     result.y = point.getY();
+    result.index = 0;
 
     double* dist_array = new double[num];
     //parallel to decrease span
@@ -56,7 +97,27 @@ interNode map(Point point, vector<Point> centers){
         dist_array[i] = point.distance(centers[i]);
     }
 
-    result.index = minReduceForIndex(dist_array, 0, num);
+    minReduceForIndex(dist_array, 0, num, result.index);
+    return result;
+
+}
+
+interNode mapSerial(Point point, vector<Point> centers){
+    int num = centers.size();
+    interNode result; 
+    result.x = point.getX();
+    result.y = point.getY();
+
+    int candidate = 0;
+    double dist = std::numeric_limits<double>::max();
+
+    for (int i = 0; i < centers.size(); i++){
+        if (point.distance(centers[i]) < dist){
+            dist = point.distance(centers[i]);
+            candidate = i;
+        }
+    }
+    result.index = candidate;
     return result;
 
 }
@@ -85,6 +146,22 @@ vector<Point> randomSelectKCenters(vector<Point> &points, int numOfClusters){
     }
     
     return centers;
+}
+
+interNode combine(vector< vector<interNode> > lists, int index){
+    interNode res;
+    res.index = index;
+
+    vector<interNode> focusList = lists[index];
+    int num = focusList.size();
+    if (num == 0){
+        res.x = 0;
+        res.y = 0;
+        return res;
+    }
+
+    sumReduceForXY(focusList, res.x, res.y);
+    return res;
 }
 
 
@@ -123,21 +200,82 @@ int main(int argc, char* argv[]){
         return 0;
     }
 
+    int numOfIteration = 0;
+
     vector<Point> points = readData(filename);
     //cout << "before: " << points.size() << endl;
     //printPointsVector(points);
     vector<Point> centers = randomSelectKCenters(points, numOfClusters);
-    //cout << "centers\n";
-    //printPointsVector(centers);
+    vector<Point> centersOld (centers);
+    cout << "original centers\n";
+    printPointsVector(centers);
     //cout << "after: " << points.size() << endl;
     //printPointsVector(points);
 
 
-    vector<interNode> interNodes(points.size());
-    cilk_for(int i = 0; i < points.size() ; i++){
-        interNodes[i] = map(points[i], centers);
+    //centerLists
+    vector< vector<interNode> > centerLists;
+    for (int i = 0; i < numOfClusters; i++){
+        vector<interNode> list;
+        centerLists.push_back(list);
     }
 
+    while(true){
+        numOfIteration++;
+        cout << "start of " << numOfIteration << " iteration\n";
+
+        //mapping
+        vector<interNode> interNodes(points.size());
+        cilk_for(int i = 0; i < points.size() ; i++){
+            interNodes[i] = mapParallel(points[i], centers);
+            int index = interNodes[i].index;
+            centerLists[index].push_back(interNodes[i]);
+        }
+        /*
+           printInterNodeVector(interNodes);
+           cout << "centerLists\n";
+           for (int i = 0; i < numOfClusters; i++){
+           printInterNodeVector(centerLists[i]);
+           }
+           */
+
+        //combine
+        vector<interNode> combineNodes(numOfClusters);
+        cilk_for (int i = 0; i < numOfClusters; i++){
+            combineNodes[i] = combine(centerLists, i);
+        }
+        //printInterNodeVector(combineNodes);
+
+        //reduce
+        cilk_for (int i = 0; i < numOfClusters; i++){
+            int num = centerLists[i].size();
+            //update centers
+            if (num == 0){
+                //do nothing
+            }else{
+                centers[i].setX(combineNodes[i].x / num);
+                centers[i].setY(combineNodes[i].y / num);
+            }
+        }
+
+        cout << "centers update\n";
+        printPointsVector(centers);
+
+        //check if okay
+        double diff = 0;
+        for (int i = 0; i < centers.size(); i++){
+           diff += abs(centers[i].getX() - centersOld[i].getX()); 
+           diff += abs(centers[i].getY() - centersOld[i].getY()); 
+        }
+        cout << "diff = " << diff << endl;
+
+        if (diff < 0.01){
+            break;
+        }else{
+            centersOld = centers;
+        }
+
+    }
 
     return 0;
 }
