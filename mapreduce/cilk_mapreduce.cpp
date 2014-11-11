@@ -98,6 +98,8 @@ interNode mapParallel(Point point, vector<Point> centers){
     }
 
     minReduceForIndex(dist_array, 0, num, result.index);
+
+    delete dist_array;
     return result;
 
 }
@@ -136,7 +138,7 @@ vector<Point> randomSelectKCenters(vector<Point> &points, int numOfClusters){
         }
         
         mySet.insert(index);
-        centers[i] = points[index];
+        centers[i].copy(points[index]);
     }
 
     //remove centers from points
@@ -220,12 +222,14 @@ int main(int argc, char* argv[]){
         centerLists.push_back(list);
     }
 
+    vector<interNode> interNodes(points.size());
+    vector<interNode> combineNodes(numOfClusters);
+
     while(true){
         numOfIteration++;
         cout << "start of " << numOfIteration << " iteration\n";
 
         //mapping
-        vector<interNode> interNodes(points.size());
         cilk_for(int i = 0; i < points.size() ; i++){
             interNodes[i] = mapParallel(points[i], centers);
             int index = interNodes[i].index;
@@ -239,12 +243,17 @@ int main(int argc, char* argv[]){
            }
            */
 
+        cout << "map done\n";
+
+
         //combine
-        vector<interNode> combineNodes(numOfClusters);
         cilk_for (int i = 0; i < numOfClusters; i++){
             combineNodes[i] = combine(centerLists, i);
         }
         //printInterNodeVector(combineNodes);
+
+
+        cout << "combine done\n";
 
         //reduce
         cilk_for (int i = 0; i < numOfClusters; i++){
@@ -258,18 +267,30 @@ int main(int argc, char* argv[]){
             }
         }
 
+        cout << "reduce done\n";
+
+        //clear
+        for (int i = 0; i < centerLists.size(); i++){
+            centerLists[i].clear();
+        }
+
+        cout << "clear done\n";
+
+
         cout << "centers update\n";
         printPointsVector(centers);
 
         //check if okay
+        //TODO
         double diff = 0;
         for (int i = 0; i < centers.size(); i++){
            diff += abs(centers[i].getX() - centersOld[i].getX()); 
            diff += abs(centers[i].getY() - centersOld[i].getY()); 
         }
         cout << "diff = " << diff << endl;
+        cout << endl;
 
-        if (diff < 0.01){
+        if (diff < 1){
             break;
         }else{
             centersOld = centers;
