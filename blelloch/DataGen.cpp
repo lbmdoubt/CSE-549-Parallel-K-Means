@@ -65,7 +65,7 @@ vector<Point> genClusters(int k, double stdDev, int num, int seed, int range, bo
         p = p * stdDev;
         p = p + center;
         if(castToInt){
-            p.setX(floor(p.getY()));
+            p.setX(floor(p.getX()));
             p.setY(floor(p.getY()));
         }
         output[i] = p;

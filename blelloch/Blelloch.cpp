@@ -1,4 +1,3 @@
-
 #include <cstdlib>
 #include <iostream>
 #include <fstream>
@@ -7,10 +6,9 @@
 #include <cilk/cilk.h>
 #include <cilktools/cilkview.h>
 #include <cilk/reducer_min.h>
-#include "DataGen.cpp"
 #include "Point.cpp"
 
-#define DEBUG 1
+#define DEBUG 0
 
 //default values
 #define DEFAULT_NUM_POINTS 10
@@ -111,13 +109,12 @@ void parallelMergeDistances(vector<pointDistance> *distances, int start1, int en
     if(part1Size + part2Size != end2 - start2 + end1 - start1 && DEBUG){
         cout << "Error, the merged sizes don't match" << endl;
     }
-    //cilk_for(int i = 0; i < part1.size(); i++){
-    for(int i = 0; i < part1Size; i++){
+    
+    cilk_for(int i = 0; i < part1Size; i++){
         results[i] = part1[i];
     }
     
-    //cilk_for(int i = 0; i < part2.size(); i++){
-    for(int i = 0; i < part2Size; i++){
+    cilk_for(int i = 0; i < part2Size; i++){
         results[part1Size + i] = part2[i];
     }
 }
@@ -611,10 +608,9 @@ vector<Point> blelloch(vector<Point> input, int k){
 	
 	loops = 0;
     
-    while(!stopSwapping && (!DEBUG || (loops < 2))){
+    while(!stopSwapping && (!DEBUG || (loops < 10))){
         stopSwapping = true;
-        //cilk_for(int i = 0; i < k; i++){//for each center
-        for(int i = 0; i < k; i++){//DEBUG
+        cilk_for(int i = 0; i < k; i++){//for each center
             double *swapDeltas = new double[num];
             cilk_for(int j = 0; j < num; j++){ //test each possible swap
 				//check all points
@@ -622,7 +618,7 @@ vector<Point> blelloch(vector<Point> input, int k){
                     double *delta = new double[num];
                     double *deltaScan = new double[num + 1];
 					cilk_for(int l = 0; l < num; l++){
-						double curDistance = input[l].distance(input[assignments[l]]);
+						double curDistance = input[l].distance(input[centers[assignments[l]]]);
 						if(assignments[l] != i){
 							//if its not assigned to center i, it might swap to new center at point j
 							double potentialDistance = input[l].distance(input[j]);
@@ -645,8 +641,9 @@ vector<Point> blelloch(vector<Point> input, int k){
 							}
 							findMinIndex(distanceToCenter, 0, k, &minIndex);
 							if(minIndex != i && distanceToCenter[minIndex] < curDistance){
-								//cout << "Error: swapping to an existing center should not reduce the cost" << endl;
-								//cout << minIndex << ":" << distanceToCenter[minIndex] << " " << i << ":" << curDistance << endl;
+								cout << "Error: swapping to an existing center should not reduce the cost" << endl;
+                                cout << l << endl;
+								cout << minIndex << ":" << distanceToCenter[minIndex] << " " << i << ":" << curDistance << endl;
 							}
 							delta[l] = distanceToCenter[minIndex] - curDistance;
 							delete distanceToCenter;
@@ -656,13 +653,6 @@ vector<Point> blelloch(vector<Point> input, int k){
                     scan(delta, num, deltaScan);
 				
                     swapDeltas[j] = deltaScan[num];
-				
-                    if(j == 4){
-                        for(int q = 0; q < num; q++){
-                            cout << delta[q] << " ";
-                        }
-                        cout << endl;
-                    }
 				
                     delete delta;
                     delete deltaScan;
@@ -679,12 +669,6 @@ vector<Point> blelloch(vector<Point> input, int k){
 				//propose the swap
 				swaps[bestSwapIndex] = i;
 			}
-			
-			cout << i << ":";
-			for(int j = 0; j < num; j++){
-				cout << swapDeltas[j] << " ";
-			}
-			cout << endl;
 			
             delete swapDeltas;
         }
@@ -758,6 +742,11 @@ vector<Point> blelloch(vector<Point> input, int k){
 		loops++;
     }
     
+    results.resize(k);
+    for(int i = 0; i < k; i++){
+        results[i] = input[centers[i]];
+    }
+    
     delete maxIndNums;
     delete maxIndSet;
     delete swaps;
@@ -765,92 +754,4 @@ vector<Point> blelloch(vector<Point> input, int k){
     delete indSetScan;
     delete assignments;
     return results; 
-}
-
-void printHelpShort(){
-    cout << "Usage: ./blelloch [-f filename] [-n numPoints] [-s seed] [-r range] [-i castToInts] [-o outFile] [-c cilk] [-k centers]" << endl;
-    cout << "type \"./blelloch -help\" for a detailed explanation" << endl << endl;
-}
-
-void printHelp(){
-    cout << "Usage: ./blelloch [-f filename] [-n numPoints] [-s seed] [-r range] [-i castToInts] [-o outFile] [-c cilk] [-k centers]" << endl;
-    cout << "    [-f filename]   If set, loads the points data from a file" << endl;
-    cout << "                    Otherwise, the points are randomly generated" << endl;
-    cout << "    [-n numPoints]  Sets the number of points to generate if -f isn't set." << endl;
-    cout << "                    Defaults to 10" << endl;
-    cout << "    [-s seed]       Sets the seed for the random number generator." << endl;
-    cout << "                    If not set, a random seed based on the time will be chosen" << endl;
-    cout << "                    note: this will also seed the random numbers for the algorithm" << endl;
-    cout << "    [-r range]      Sets the upper limit of the range for x and y values." << endl;
-    cout << "                    Defaults to 100." << endl;
-    cout << "    [-i castToInts] If 0, the points generated will be doubles." << endl;
-    cout << "                    Otherwise the x and y values will be generated as integers." << endl;
-    cout << "                    Defaults to 1." << endl << endl;
-    cout << "    [-o outFile]    Writes the results to this file if set." << endl;
-    cout << "    [-c cilk]       If 1, cilk's workspan analysis will be enabled. Default off" << endl;
-    cout << "    [-k centers]    the number of centers to look for, default 3" << endl;
-}
-
-int main(int argc, char* argv[]){
-    int seed = time(NULL);
-    int num = DEFAULT_NUM_POINTS;
-    int range = DEFAULT_POINT_RANGE;
-    bool castToInt = DEFAULT_CAST;
-    int k = DEFAULT_K;
-    char* file = NULL;
-    if(argc > 1){
-        if (string(argv[1]) == "-help") {
-            printHelp();
-            return 0;
-        }
-        
-        for (int i = 1; i < argc; i += 2) {
-            string arg = string(argv[i]);
-            if (arg == "-f") {
-                file = argv[i + 1];
-            } else if (arg == "-n"){
-                num = atoi(argv[i + 1]);
-            } else if (arg == "-s"){
-                seed = atoi(argv[i + 1]);
-            } else if (arg == "-r"){
-                range = atoi(argv[i + 1]);
-            } else if (arg == "-i"){
-                if(string(argv[i + 1]) == "0"){
-                    castToInt = false;
-                }
-            } else if (arg == "-k"){
-                k = atoi(argv[i + 1]);
-            } else {
-                cout << arg << " is not recognized" << endl;
-                printHelpShort();
-                return 0;
-            }
-        }
-    } else {
-        printHelpShort();
-    }  
-    
-    vector<Point> list;
-    srand(seed);
-    
-    if(file != NULL){
-        list = readData(file);
-    } else {
-        list = genData(num, seed, range, castToInt);
-    }
-    
-    for(int i = 0; i < list.size(); i++){
-        cout << list[i].getX() << " " << list[i].getY() << endl;
-    }
-    
-    if(k == num){
-        cout << "looking for same number of centers as points, just copy the input file." << endl;
-        return 0;
-    } else if(k > num){
-        cout << "looking for more centers than points, just take the input and duplicate a few points. I'm too lazy to do it for you" << endl;
-        return 0;
-    }
-    
-    blelloch(list, k);
-    return 0;
 }
