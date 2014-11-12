@@ -204,6 +204,7 @@ int main(int argc, char* argv[]){
 
     int numOfIteration = 0;
 
+    //points & centers
     vector<Point> points = readData(filename);
     //cout << "before: " << points.size() << endl;
     //printPointsVector(points);
@@ -213,7 +214,7 @@ int main(int argc, char* argv[]){
     printPointsVector(centers);
     //cout << "after: " << points.size() << endl;
     //printPointsVector(points);
-
+    int numOfPoints = points.size();
 
     //centerLists
     vector< vector<interNode> > centerLists;
@@ -230,7 +231,7 @@ int main(int argc, char* argv[]){
         cout << "start of " << numOfIteration << " iteration\n";
 
         //mapping
-        cilk_for(int i = 0; i < points.size() ; i++){
+        cilk_for (int i = 0; i < numOfPoints; i++){
             interNodes[i] = mapParallel(points[i], centers);
             int index = interNodes[i].index;
             centerLists[index].push_back(interNodes[i]);
@@ -245,6 +246,7 @@ int main(int argc, char* argv[]){
 
         cout << "map done\n";
 
+        /*
 
         //combine
         cilk_for (int i = 0; i < numOfClusters; i++){
@@ -295,6 +297,16 @@ int main(int argc, char* argv[]){
         }else{
             centersOld = centers;
         }
+
+        */
+
+        for (int i = 0; i < centerLists.size(); i++){
+            centerLists[i].clear();
+        }
+
+        cout << "clear done\n";
+        if (numOfIteration == 100)
+            break;
 
     }
 
