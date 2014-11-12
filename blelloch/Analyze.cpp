@@ -106,7 +106,6 @@ int main(int argc, char* argv[]){
             int range = 100;
             bool castToInt = 1;
             
-            cout << "reading flags" << endl;
             
             while(flagIndex < argc - 1){
                 if(string(argv[flagIndex]) == "-f"){
@@ -131,6 +130,7 @@ int main(int argc, char* argv[]){
             }
             
             //because these algorithms are randomized we want to pregenerate the seeds so that all runs are consistent
+            cout << "initial seed: " << seed << endl;
             srand(seed);
             seeds.resize(targetLoops);
             for(int i = 0; i < targetLoops; i++){
@@ -144,21 +144,16 @@ int main(int argc, char* argv[]){
             results.resize(targetLoops);
             error.resize(targetLoops);
             
-            cout << "running tests" << endl;
-            
             for(int i = 0; i < targetLoops; i++){
-                cout << i << endl;
+                cout << i << "/" << targetLoops << endl;
                 if(type == 1){
                     points = genData(num, seeds[i], range, castToInt);
                 } else {
                     points = genClusters(numClusters, stdDev, num, seeds[i], range, castToInt, centers[i]);
                     populationCenterError[i] = calcError(points, centers[i]);
                 }
-                cout << "running k-means" << endl;
                 results[i] = blelloch(points, k);
-                cout << results[i][0].getX() << results[i][0].getY() << endl;
                 
-                cout << "calculating error" << endl;
                 error[i] = calcError(points, results[i]);
             }
         }
@@ -168,12 +163,9 @@ int main(int argc, char* argv[]){
         printHelp();
     } else {
         if(!output.is_open()){
-            if(!fromFile){
-                cout << "initial seed: " << seed << endl;
-            }
             if(format){
                 for(int i = 0; i < results.size(); i++){
-                    cout << "run #" << i + 1 << endl;
+                    cout << "run #" << i << endl;
                     cout << "seed: " << seeds[i] << endl;
                     cout << "results: " << endl;
                     for(int j = 0; j < results[i].size(); j++){
@@ -189,9 +181,88 @@ int main(int argc, char* argv[]){
                     }
                 }
             } else {
+                cout << "total runs: " << results.size() << endl;
+                cout << "seeds:" << endl;
+                for(int i = 0; i < results.size(); i++){
+                    cout << seeds[i] << endl;
+                }
+                cout << "results: " << endl;
+                for(int i = 0; i < results.size(); i++){
+                    for(int j = 0; j < results[i].size(); j++){
+                        cout << " " << results[i][j].getX() << " " << results[i][j].getY() << "  ";
+                    }
+                    cout << endl;
+                }
+                cout << "errors: " << endl;
+                for(int i = 0; i < results.size(); i++){
+                    cout << error[i] << endl;
+                }
+                if(centers.size() > 0 && centers[0].size() > 0){
+                    cout << "population centers:" << endl;
+                    for(int i = 0; i < centers.size(); i++){
+                        for(int j = 0; j < centers[i].size(); j++){
+                            cout << " " << centers[i][j].getX() << " " << centers[i][j].getY() << "  ";
+                        }
+                        cout << endl;
+                    }
+                    cout << "population center error: " << endl;
+                    for(int i = 0; i < centers.size(); i++){
+                        cout << populationCenterError[i] << endl;
+                    }
+                }
             }
         } else {
-            
+            if(!fromFile){
+                output << "initial seed: " << seed << endl;
+            }
+            if(format){
+                for(int i = 0; i < results.size(); i++){
+                    output << "run #" << i << endl;
+                    output << "seed: " << seeds[i] << endl;
+                    output << "results: " << endl;
+                    for(int j = 0; j < results[i].size(); j++){
+                        output << results[i][j].getX() << " " << results[i][j].getY() << endl;
+                    }
+                    output << "error: " << error[i] << endl;
+                    if(centers.size() > i && centers[i].size() > 0){
+                        output << "population centers:" << endl;
+                        for(int j = 0; j < centers[i].size(); j++){
+                            output << centers[i][j].getX() << " " << centers[i][j].getY() << endl;
+                        }
+                        output << "population center error: " << populationCenterError[i] << endl;
+                    }
+                }
+            } else {
+                output << "total runs: " << results.size() << endl;
+                output << "seeds:" << endl;
+                for(int i = 0; i < results.size(); i++){
+                    output << seeds[i] << endl;
+                }
+                output << "results: " << endl;
+                for(int i = 0; i < results.size(); i++){
+                    for(int j = 0; j < results[i].size(); j++){
+                        output << " " << results[i][j].getX() << " " << results[i][j].getY() << "  ";
+                    }
+                    output << endl;
+                }
+                output << "errors: " << endl;
+                for(int i = 0; i < results.size(); i++){
+                    output << error[i] << endl;
+                }
+                if(centers.size() > 0 && centers[0].size() > 0){
+                    output << "population centers:" << endl;
+                    for(int i = 0; i < centers.size(); i++){
+                        for(int j = 0; j < centers[i].size(); j++){
+                            output << " " << centers[i][j].getX() << " " << centers[i][j].getY() << "  ";
+                        }
+                        output << endl;
+                    }
+                    output << "population center error: " << endl;
+                    for(int i = 0; i < centers.size(); i++){
+                        output << populationCenterError[i] << endl;
+                    }
+                }
+            }
             output.close();
         }
     }

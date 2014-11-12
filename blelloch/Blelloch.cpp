@@ -507,52 +507,52 @@ vector<Point> blelloch(vector<Point> input, int k){
     int* maxIndNums = new int[num * num];
     int* maxIndSet = new int[num];
     
-    cilk_for(int i = 0; i < num * num; i++){
-        maxIndNums[i] = -1;
-    }
-    
     int loops = 0; //sanity check for debugging
-    while ((maxIndNums[current] < 0 || !(maxIndNums[current] <= k && (current == 0 || maxIndNums[current - 1] > k))) && loops < 100) {
-        if(maxIndNums[current] < 0){
-            maxIndNums[current] = calcMaxIndSet(distances, current, num, maxIndSet);
-        }
-        
-        if(current > 0 && maxIndNums[current - 1] < 0){
-            maxIndNums[current - 1] = calcMaxIndSet(distances, current - 1, num, maxIndSet);
-        }
-        if(maxIndNums[current] == k and maxIndNums[current - 1] == k){
-            max = current;
-        }
-        if(maxIndNums[current] < k){
-            max = current;
-        }
-        if(maxIndNums[current] > k){
-            min = current;
-        }
-        current = (min + max) / 2;
-            
-        loops++;
-    }
+    //while ((maxIndNums[current] < 0 || !(maxIndNums[current] <= k && (current == 0 || maxIndNums[current - 1] > k))) && loops < 200) {
     
-    //calculate it again to find the independent set
-    int maxSize = calcMaxIndSet(distances, current, num, maxIndSet);
-    
-    //due to the randomness of the algorithm, we'll do one final sanity check
-    loops = 0;
+    //due to the randomness of the algorithm, we'll have to try multiple times in case of inconsistencies
+    int maxSize = -1;
     while(maxSize != k && loops < 10){
-        if(maxSize > k){
-            current++;
+        max = num * num;
+        min = 0;
+        current = (min + max) / 2;
+        cilk_for(int i = 0; i < num * num; i++){
+            maxIndNums[i] = -1;
         }
-        if(maxSize < k){
-            current--;
+        while ((current > min && current < max)) {
+            if(maxIndNums[current] < 0){
+                maxIndNums[current] = calcMaxIndSet(distances, current, num, maxIndSet);
+            }
+            
+            if(current > 0 && maxIndNums[current - 1] < 0){
+                maxIndNums[current - 1] = calcMaxIndSet(distances, current - 1, num, maxIndSet);
+            }
+            if(maxIndNums[current] == k and maxIndNums[current - 1] == k){
+                max = current;
+                current = (min + max) / 2;
+            } else if(maxIndNums[current] < k){
+                max = current;
+                current = (min + max) / 2;
+            } else if(maxIndNums[current] > k){
+                min = current;
+                current = (min + max) / 2;
+            } else {
+                min = current;
+                max = current;
+            }
         }
-        maxSize = calcMaxIndSet(distances, current, num, maxIndSet);
         loops++;
+        maxSize = calcMaxIndSet(distances, current, num, maxIndSet);
     }
+
     if(maxSize != k){
-        //something went wrong...
+        //something went horribly wrong...
         cout << "Error: max independent set is inconsistent" << endl;
         cout << "set size is " << maxSize << " at cutoff " << current << endl;
+        results.resize(k);
+        
+        delete maxIndNums;
+        delete maxIndSet;
         return results;
     }
     
