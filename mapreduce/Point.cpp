@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Point.h"
-#include <iostream>
 #include <cmath>
 
 using namespace std;
@@ -53,12 +52,6 @@ Point operator+(const Point &left, const Point &right){
     return Point(left.x + right.x, left.y + right.y);
 }
 
-/*
-bool operator==(Point* left, Point* right){
-  return ((left->getX() == right->getX()) && (left->getY() == right->getY()));
-}
-*/
-
-void Point::printPoint(){
-    cout << "point:  (" << x << ", " << y << ")" << endl;
+bool operator==(const Point &left, const Point &right){
+    return left.x == right.x && left.y == right.y;
 }
