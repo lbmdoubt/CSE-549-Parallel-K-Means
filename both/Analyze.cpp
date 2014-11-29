@@ -10,6 +10,7 @@
 #include "DataGen.cpp"
 #include "Point.cpp"
 #include "Blelloch.cpp"
+#include "cilk_mapreduce.cpp"
 
 using namespace std;
 
@@ -43,7 +44,6 @@ void printHelp(){
     cout << "       [-i castToInts]     If 1, all generated points are cast to integers" << endl;
     cout << "       [-l loops]          The number of trials to run" << endl;
     cout << "       [-o format]         If 1, output will be organized by run, otherwise data will be outputted by type" << endl;
-	//TODO:
 	cout << "       [-a initialChoice]  If 1, chooses initial points randomly. Otherwise initial points will be chosen by MaxIndSet" << endl;
 	cout << "       [-b update]         If 1, centers will be updated via averaging. Otherwise points will be updated through swapping" << endl;
 }
@@ -131,6 +131,10 @@ int main(int argc, char* argv[]){
                     targetLoops = atoi(argv[flagIndex + 1]);
                 } else if (string(argv[flagIndex]) == "-o"){
                     format = (string(argv[flagIndex + 1]) == "1");
+                } else if (string(argv[flagIndex]) == "-a" && atoi(argv[flagIndex + 1]) == 1){
+                    initialChoice = true;
+                } else if (string(argv[flagIndex]) == "-b" && atoi(argv[flagIndex + 1]) == 1){
+                    update = true;
                 }
                 
                 flagIndex += 2;
@@ -165,8 +169,16 @@ int main(int argc, char* argv[]){
 				//__cilkview_workspan_start();
 				
 				long startTime = cilk_getticks();
-                results[i] = findCentersBlelloch(points, k);
-				swap(points, k, results[i]);
+				if(initialChoice){
+					results[i] = randomSelectKCenters(points, k);
+				} else {
+					results[i] = findCentersBlelloch(points, k);
+				}
+				if(update){
+					mapreduce(points, k, results[i]);
+				} else {
+					swap(points, k, results[i]);
+				}
 				long endTime = cilk_getticks();
 				
 				//__cilkview_workspan_stop();
